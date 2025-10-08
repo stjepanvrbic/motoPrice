@@ -20,6 +20,61 @@ This is a backend-first system that evaluates motorcycle listings from various m
 
 ---
 
+## Coding Style & Conventions
+
+### Naming Conventions
+**CRITICAL:** User prefers camelCase for all naming.
+
+- **Functions:** camelCase (e.g., `testPythonVersion`, `getListingData`)
+- **Variables:** camelCase (e.g., `projectRoot`, `listingUrl`)
+- **Filenames:** camelCase (e.g., `testEnvironment.py`, `cliMain.py`)
+- **Classes:** PascalCase (e.g., `ListingAnalyzer`, `BaseScraper`)
+
+**Configuration:**
+- Pytest configured to recognize `test*` pattern (not just `test_*`)
+- Ruff configured to ignore N802 and N806 (allows camelCase)
+
+### Writing Style
+User's style is **clear, concise, and direct**. No fluff.
+
+**Do:**
+- Write concise comments that explain what, not how
+- Use direct language without epithets
+- Be informational without being verbose
+- Example: "Environment setup verification tests." (not "Tests to verify the development environment is set up correctly.")
+
+**Don't:**
+- Use emojis (unless explicitly requested)
+- Use unnecessary adjectives ("powerful", "comprehensive", "robust")
+- Use bold formatting excessively
+- Add marketing language or superlatives
+
+### Commit Messages
+Format: Title paragraph, then detailed description.
+
+**Title:**
+- Concise summary of the change
+- No emojis, no "feat:", "fix:" prefixes
+- Example: "Project initialization and environment setup"
+
+**Description:**
+- Explain what was changed and what it does
+- Audience is software engineers - they understand code
+- No redundant words or epithets
+- No phrases like "ensuring code quality is maintained" (obvious)
+- Example: "Resolved dependency conflicts between pyproject.toml and requirements.txt - both now use psycopg v3 with binary support."
+
+**Never include:**
+- Claude-related information
+- References to "Claude Code" or AI assistance
+- Phrases like "foundation is solid and ready"
+
+### Code Comments
+- Brief and direct
+- Focus on why, not what
+- Example: "Can run git commands" (not "Verify we can run git commands")
+- Example: "Key directories" (not "Check key directories")
+
 ## Key User Requirements & Preferences
 
 ### User Input Method
