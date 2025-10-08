@@ -134,26 +134,36 @@ Format: Title paragraph, then detailed description.
    - Use GitHub for backup and collaboration
 
 4. **Workflow Per Task:**
-   - Implement → Test → Present → Review → Approve → **Commit & Push**
+   - Implement → Test → Present → Review → Approve → **Commit & Push** → Update Roadmap
    - Never skip the commit step after approval
+   - Never skip the roadmap update step
    - Push to GitHub regularly to ensure backup
 
 ### Code Review Process
 The user wants a professional software engineering workflow with formal code reviews. For each task:
 
-1. **Implementation Phase:**
-   - Complete the task implementation
-   - Write comprehensive, detailed tests
-   - Ensure all tests pass
+1. **Work Autonomously:**
+   - Work on the task without asking for permission for each step
+   - Complete implementation, write tests, run tests
+   - Make decisions based on what you understand from spec.md and roadmap.md
+   - If something is unclear or you need to make assumptions, note it for review
+   - Don't ask "can I do X" - just do it if it's part of the task
 
 2. **Presentation Phase:**
-   - Provide a description of the change (what and why)
-   - Explain the changes file-by-file
+   - When task is complete, present for review
+   - **Show the actual code** - use Read tool to display files created/modified so user can see changes in their IDE
+   - Provide description of changes (what and why)
+   - Explain changes file-by-file with code references
    - Show test results (all tests must be passing)
    - Note any important decisions, trade-offs, or issues
+   - Mention any assumptions made or unclear requirements
+   - **Present a properly formatted commit message** ready to use:
+     - First paragraph: Short summary (title) - concise, no prefixes, no emojis
+     - Following paragraphs: Detailed description of what changed and what it does
+     - See "Commit Messages" section for full format requirements
 
 3. **Review Phase:**
-   - User reviews the code and tests
+   - User reviews code and tests
    - User may ask questions or request changes
    - User approves before moving to next task
 
@@ -161,19 +171,22 @@ The user wants a professional software engineering workflow with formal code rev
    - Only move to next task after explicit approval
    - **Immediately create git commit for approved changes**
    - **Push to GitHub**
-   - Update roadmap.md with completion status
+   - **CRITICAL: Launch roadmap-update sub-agent** (see Sub-Agents section below)
 
 ### Testing Requirements
 - **Construct detailed, thorough tests** for each component
 - Tests must be passing before presenting for review
 - Each piece should be **independently testable**
 - Build and test individual pieces thoroughly before integration
+- **Target 100% test coverage** - aim for complete coverage, accept slightly less only if truly not feasible
 
 ### Progress Tracking
-- Keep `roadmap.md` updated with progress
+- **roadmap.md is automatically updated by the roadmap-update sub-agent**
+- Sub-agent runs after every approved task commit
 - Mark tasks as ✅ Completed, 🚧 In Progress, or ⏳ Pending
 - Document interesting findings or important decisions in roadmap.md
 - Note down anything important as we go
+- **Never manually update roadmap.md - always use the sub-agent**
 
 ### Task Sizing Philosophy
 The user emphasizes **bite-sized tasks** that:
@@ -184,6 +197,62 @@ The user emphasizes **bite-sized tasks** that:
 - Build confidence in robustness before integration
 
 > "Having a detailed roadmap, and detailed smaller tasks also enables us to not overload my brain, and your context, and focus on tasks we can execute reliably."
+
+---
+
+## Sub-Agents
+
+### Roadmap Update Agent
+**Purpose:** Verify task completion and update roadmap.md after every approved task.
+
+**When to Run:**
+- **MANDATORY after every git commit following user approval**
+- Before starting any new task
+- This is a strict requirement - never skip this step
+
+**What it Does:**
+1. **Verify Completion:**
+   - Read all files that were changed in the last commit
+   - Run all tests to verify they pass
+   - Check that all deliverables in roadmap.md for the task were completed
+   - Verify acceptance criteria were met
+   - Identify any incomplete items or failing tests
+
+2. **Report Issues:**
+   - If anything is incomplete, missing, or broken: **STOP and report to user**
+   - List specific issues found
+   - Do not update roadmap until issues are resolved
+   - User must approve fixes before proceeding
+
+3. **Update Roadmap:**
+   - Only if all verification passes
+   - Mark completed task with ✅
+   - Update task status
+   - Check off all deliverables as completed
+   - Add any notes or decisions to "Notes & Decisions Log"
+   - Update "Current Task" to next pending task
+   - Commit roadmap.md changes with message: "Update roadmap: mark Task X.Y as completed"
+
+4. **Prepare for Next Task:**
+   - Read the next task from roadmap.md
+   - Understand its objectives and dependencies
+   - Confirm with user which task to start next
+
+**How to Invoke:**
+```
+After user approves changes and you commit:
+1. Use Task tool with subagent_type="general-purpose"
+2. Provide detailed prompt about what was just completed
+3. Agent will verify, test, and update roadmap
+4. Wait for agent completion before proceeding
+```
+
+**Critical Rules:**
+- **Never skip this agent after a commit**
+- **Never update roadmap.md manually - always use this agent**
+- **Never start a new task without running this agent first**
+- If agent reports issues, fix them before proceeding
+- All tasks in roadmap.md must be completed before moving to next phase
 
 ---
 
@@ -309,36 +378,39 @@ If resuming work after a break:
 
 1. **Check current status:**
    - Read roadmap.md to see current phase and task
-   - Look for 🚧 In Progress tasks
+   - Look at "Current Task" field at top of roadmap.md
+   - Check git log to see what was last committed
    - Review notes in "Notes & Decisions Log" section
 
-2. **Understand the last task:**
-   - What was being worked on?
-   - Was it completed and approved?
-   - Are there any blockers noted?
+2. **Verify last task completion:**
+   - If there's a 🚧 In Progress task, it may not have been completed
+   - Check if roadmap-update agent was run after last commit
+   - If not, run it now to verify and update status
 
 3. **Ask the user:**
    - Confirm what task to work on next
    - Check if priorities have changed
    - Ask about any new requirements
 
-4. **Follow the workflow:**
-   - Implement → Test → Present → Review → Approve
-   - Update roadmap.md with progress
+4. **Follow the strict workflow:**
+   - Implement → Test → Present → Review → Approve → Commit → **Roadmap Update Agent** → Next Task
+   - Never skip the roadmap update step
    - Document any important decisions
 
 ---
 
 ## Common Pitfalls to Avoid
 
-1. **Don't skip testing** - User requires comprehensive tests
+1. **Don't skip testing** - User requires comprehensive tests with 100% coverage target
 2. **Don't batch completions** - Mark tasks complete immediately when done
 3. **Don't proceed without approval** - Wait for explicit user approval
 4. **Don't make assumptions** - Ask if requirements are unclear
 5. **Don't create large changes** - Break into bite-sized tasks
-6. **Don't forget to update roadmap.md** - Keep progress tracking current
+6. **Don't manually update roadmap.md** - ALWAYS use the roadmap-update sub-agent
 7. **Don't forget to commit** - ALWAYS commit and push after approval
 8. **Don't make large commits** - One commit per bite-sized task
+9. **Don't skip the roadmap-update agent** - It's mandatory after every commit
+10. **Don't start new tasks without verification** - Let the agent verify completion first
 
 ---
 
