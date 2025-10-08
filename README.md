@@ -31,7 +31,7 @@ motoPrice scrapes motorcycle listings from multiple marketplaces (CycleTrader, F
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/motoPrice.git
+git clone https://github.com/stjepanvrbic/motoPrice.git
 cd motoPrice
 
 # Create virtual environment
