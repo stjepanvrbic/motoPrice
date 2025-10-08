@@ -134,44 +134,99 @@ Format: Title paragraph, then detailed description.
    - Use GitHub for backup and collaboration
 
 4. **Workflow Per Task:**
-   - Implement → Test → Present → Review → Approve → **Commit & Push** → Update Roadmap
-   - Never skip the commit step after approval
-   - Never skip the roadmap update step
-   - Push to GitHub regularly to ensure backup
+   - **STRICT WORKFLOW:** See "STRICT WORKFLOW - FOLLOW EXACTLY" section below
+   - Branch → Implement → Test → Squash → Reviewer → PR → "Ship it!" → Merge → Update Roadmap
+   - NEVER skip any step
+   - NEVER work on main branch
+   - NEVER present without reviewer approval
+   - NEVER merge without "Ship it!"
 
-### Code Review Process
-The user wants a professional software engineering workflow with formal code reviews. For each task:
+## STRICT WORKFLOW - FOLLOW EXACTLY
 
-1. **Work Autonomously:**
-   - Work on the task without asking for permission for each step
-   - Complete implementation, write tests, run tests
-   - Make decisions based on what you understand from spec.md and roadmap.md
-   - If something is unclear or you need to make assumptions, note it for review
-   - Don't ask "can I do X" - just do it if it's part of the task
+### Step 1: Understand Current State
+1. Read CLAUDE.md, spec.md, roadmap.md
+2. Follow CLAUDE.md instructions STRICTLY
+3. Find current position in roadmap.md (look for 🚧 In Progress or next ⏳ Pending task)
+4. Read additional files for context if needed
+5. Understand the current task's objectives, deliverables, and acceptance criteria
 
-2. **Presentation Phase:**
-   - When task is complete, present for review
-   - **Show the actual code** - use Read tool to display files created/modified so user can see changes in their IDE
-   - Provide description of changes (what and why)
-   - Explain changes file-by-file with code references
-   - Show test results (all tests must be passing)
-   - Note any important decisions, trade-offs, or issues
-   - Mention any assumptions made or unclear requirements
-   - **Present a properly formatted commit message** ready to use:
-     - First paragraph: Short summary (title) - concise, no prefixes, no emojis
-     - Following paragraphs: Detailed description of what changed and what it does
-     - See "Commit Messages" section for full format requirements
+### Step 2: Create Branch and Implement
+1. **CRITICAL: Create a new branch** for the current task
+   - Branch name format: `task-X.Y-description` (e.g., `task-1.2-database-setup`)
+   - NEVER work on main branch
+2. Start implementing the task
+3. **Full freedom during implementation:**
+   - Write code, run commands, read files - NO permission needed
+   - Add, commit, push to branch regularly
+   - Commit often with descriptive messages
+4. **BUT: Ask questions if unclear:**
+   - If implementation details are unclear, ASK
+   - If design choices are ambiguous, ASK
+   - Don't make assumptions about requirements
 
-3. **Review Phase:**
-   - User reviews code and tests
-   - User may ask questions or request changes
-   - User approves before moving to next task
+### Step 3: Write Comprehensive Tests
+1. When implementation is complete, write thorough tests
+2. Target 100% test coverage (or as close as reasonably possible)
+3. Test all functionality, edge cases, error conditions
+4. Ensure ALL tests pass
+5. Run tests multiple times to verify stability
 
-4. **Approval & Commit Phase:**
-   - Only move to next task after explicit approval
-   - **Immediately create git commit for approved changes**
-   - **Push to GitHub**
-   - **CRITICAL: Launch roadmap-update sub-agent** (see Sub-Agents section below)
+### Step 4: Squash Commits
+1. When implementation and tests are done and passing
+2. Squash all commits in branch into ONE commit
+3. Use descriptive commit message (see Commit Messages section)
+
+### Step 5: Reviewer Agent Approval - CRITICAL
+1. **MANDATORY: Launch reviewer sub-agent**
+2. Reviewer checks EVERYTHING:
+   - Code quality and alignment with spec.md
+   - Test coverage and test quality
+   - ALL roadmap.md deliverables completed
+   - Manual testing where applicable
+3. **Go back and forth with reviewer:**
+   - Reviewer finds issues → fix them → reviewer checks again
+   - Continue until reviewer approves
+4. **NEVER skip this step**
+5. **NEVER present to user without reviewer approval**
+
+### Step 6: Create Pull Request
+1. After reviewer approves, create pull request on GitHub
+2. Use `gh pr create` command
+3. PR title = first paragraph of commit message
+4. PR body = remaining paragraphs of commit message
+5. Ensure PR is visible on GitHub
+
+### Step 7: Present to User
+1. Tell user the PR is ready for review
+2. Provide PR URL
+3. Give summary of changes
+4. **WAIT for user to say "Ship it!"**
+5. **CRITICAL: Do NOT merge/commit to main until user says "Ship it!"**
+
+### Step 8: After "Ship it!"
+1. Merge PR to main
+2. Update roadmap.md:
+   - Mark task as ✅ Completed
+   - Check off all deliverables
+   - Update current task
+3. Commit roadmap.md update
+
+### Step 9: Repeat
+Go back to Step 1 for next task
+
+---
+
+## CRITICAL RULES - NEVER VIOLATE
+
+1. **NEVER work on main branch** - always create task branch
+2. **NEVER present to user without reviewer approval first**
+3. **NEVER merge to main without user saying "Ship it!"**
+4. **ALWAYS squash commits before creating PR**
+5. **ALWAYS use reviewer agent before creating PR**
+6. **ALWAYS create PR on GitHub before presenting to user**
+7. **ALWAYS update roadmap.md after "Ship it!"**
+
+---
 
 ### Testing Requirements
 - **Construct detailed, thorough tests** for each component
@@ -202,57 +257,64 @@ The user emphasizes **bite-sized tasks** that:
 
 ## Sub-Agents
 
-### Roadmap Update Agent
-**Purpose:** Verify task completion and update roadmap.md after every approved task.
+### Reviewer Agent
+**Purpose:** Review and approve all code changes before presenting to user.
 
 **When to Run:**
-- **MANDATORY after every git commit following user approval**
-- Before starting any new task
-- This is a strict requirement - never skip this step
+- **MANDATORY before every pull request to user**
+- After implementation is complete and all tests pass
+- Before creating the pull request on GitHub
+- This is a STRICT requirement - NEVER present to user without reviewer approval
 
-**What it Does:**
-1. **Verify Completion:**
-   - Read all files that were changed in the last commit
-   - Run all tests to verify they pass
-   - Check that all deliverables in roadmap.md for the task were completed
-   - Verify acceptance criteria were met
-   - Identify any incomplete items or failing tests
+**What the Reviewer Does:**
+1. **Review the Change Thoroughly:**
+   - Go through all code changes in detail
+   - Understand how changes fit with existing codebase
+   - Verify alignment with design requirements in spec.md
+   - Check for software engineering best practices
+   - Ensure adequate test coverage (target 100%)
+   - Verify tests are well-written and comprehensive
 
-2. **Report Issues:**
-   - If anything is incomplete, missing, or broken: **STOP and report to user**
-   - List specific issues found
-   - Do not update roadmap until issues are resolved
-   - User must approve fixes before proceeding
+2. **Test Changes:**
+   - Run all automated tests and verify they pass
+   - Perform manual testing when applicable
+   - Test edge cases and error conditions
+   - Verify the code actually works as intended
 
-3. **Update Roadmap:**
-   - Only if all verification passes
-   - Mark completed task with ✅
-   - Update task status
-   - Check off all deliverables as completed
-   - Add any notes or decisions to "Notes & Decisions Log"
-   - Update "Current Task" to next pending task
-   - Commit roadmap.md changes with message: "Update roadmap: mark Task X.Y as completed"
+3. **Check Roadmap Completeness:**
+   - Read roadmap.md for current task
+   - Verify ALL deliverables are completed
+   - Verify ALL acceptance criteria are met
+   - Check that nothing is missing or incomplete
 
-4. **Prepare for Next Task:**
-   - Read the next task from roadmap.md
-   - Understand its objectives and dependencies
-   - Confirm with user which task to start next
+4. **Go Back and Forth with Main Agent:**
+   - If issues found: report them to main agent
+   - Main agent fixes issues
+   - Reviewer checks again
+   - Continue until reviewer is satisfied
+
+5. **Approve Only When Perfect:**
+   - Only approve when ALL tasks are done to satisfaction
+   - Only approve when tests are comprehensive and passing
+   - Only approve when code quality is high
+   - Once approved, hand off to main agent to create PR
 
 **How to Invoke:**
 ```
-After user approves changes and you commit:
-1. Use Task tool with subagent_type="general-purpose"
-2. Provide detailed prompt about what was just completed
-3. Agent will verify, test, and update roadmap
-4. Wait for agent completion before proceeding
+Use Task tool with subagent_type="general-purpose"
+Prompt: "You are the reviewer agent. Review the changes in branch X thoroughly:
+- Check all code against spec.md requirements
+- Verify test coverage is near 100%
+- Test the changes manually
+- Check roadmap.md task deliverables are complete
+- Report any issues or approve if perfect"
 ```
 
 **Critical Rules:**
-- **Never skip this agent after a commit**
-- **Never update roadmap.md manually - always use this agent**
-- **Never start a new task without running this agent first**
-- If agent reports issues, fix them before proceeding
-- All tasks in roadmap.md must be completed before moving to next phase
+- **NEVER present to user without reviewer approval**
+- **Go back and forth with reviewer until approved**
+- **Reviewer must check EVERYTHING before approval**
+- **Only create PR after reviewer approves**
 
 ---
 
@@ -399,18 +461,18 @@ If resuming work after a break:
 
 ---
 
-## Common Pitfalls to Avoid
+## Common Pitfalls to Avoid - READ THIS
 
-1. **Don't skip testing** - User requires comprehensive tests with 100% coverage target
-2. **Don't batch completions** - Mark tasks complete immediately when done
-3. **Don't proceed without approval** - Wait for explicit user approval
-4. **Don't make assumptions** - Ask if requirements are unclear
-5. **Don't create large changes** - Break into bite-sized tasks
-6. **Don't manually update roadmap.md** - ALWAYS use the roadmap-update sub-agent
-7. **Don't forget to commit** - ALWAYS commit and push after approval
-8. **Don't make large commits** - One commit per bite-sized task
-9. **Don't skip the roadmap-update agent** - It's mandatory after every commit
-10. **Don't start new tasks without verification** - Let the agent verify completion first
+1. **NEVER work on main branch** - Always create a task branch first
+2. **NEVER commit to main directly** - All changes go through PR process
+3. **NEVER present to user without reviewer approval** - Reviewer MUST approve first
+4. **NEVER merge without "Ship it!"** - Only merge after user explicitly says "Ship it!"
+5. **NEVER skip the reviewer agent** - It's mandatory before every PR
+6. **NEVER skip creating a PR on GitHub** - User reviews on GitHub, not in chat
+7. **NEVER skip squashing commits** - One clean commit per task
+8. **NEVER skip updating roadmap.md** - Update after every "Ship it!"
+9. **Don't skip testing** - 100% coverage target
+10. **Don't make assumptions** - Ask if requirements unclear
 
 ---
 
