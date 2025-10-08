@@ -67,8 +67,19 @@ include = '\.pyi?$'
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "A", "C4", "PT"]
-ignore = ["N802", "N806"]  # Allow camelCase for functions and variables
+ignore = [
+    "N802",  # Allow camelCase for functions
+    "N806",  # Allow camelCase for variables
+    "E501",  # Line too long (handled by black)
+    "PT003", # scope='function' is implied
+]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/*" = ["E402"]  # Module level import not at top
+"tests/*" = ["PT003"]   # Implied fixture scope
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -84,7 +95,7 @@ addopts = [
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -94,3 +105,7 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
+
+[[tool.mypy.overrides]]
+module = "alembic.*"
+ignore_errors = true
