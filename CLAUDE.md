@@ -229,11 +229,49 @@ Go back to Step 1 for next task
 ---
 
 ### Testing Requirements
+
+**Test Types:**
+The project requires both **unit tests** and **integration tests** to ensure full functionality coverage.
+
+**Unit Tests:**
+- Test individual components in isolation
+- Mock external dependencies (database, network, APIs)
+- Fast execution (milliseconds per test)
+- Target 100% code coverage
+- Located in `tests/test*.py` files matching source structure
+- Examples: testConfig.py, testLogger.py, testExceptions.py, testDatabase.py
+
+**Integration Tests:**
+- Test interactions between multiple components
+- Test end-to-end workflows and data flow
+- Use real databases (test database, not mocks)
+- Verify component integration points
+- Located in `tests/integration/` directory
+- Examples:
+  - Scraper → Database pipeline
+  - Config → Database → Operations flow
+  - Full listing evaluation workflow (scrape → normalize → score)
+
+**Test Organization:**
+```
+tests/
+├── test*.py           # Unit tests for src/* modules
+├── integration/       # Integration tests
+│   ├── testScraperPipeline.py
+│   ├── testEvaluationWorkflow.py
+│   └── testEndToEnd.py
+└── fixtures/          # Shared test fixtures and data
+```
+
+**Requirements:**
 - **Construct detailed, thorough tests** for each component
 - Tests must be passing before presenting for review
-- Each piece should be **independently testable**
+- Each piece should be **independently testable** (unit tests)
+- Integration tests verify component interactions work correctly
 - Build and test individual pieces thoroughly before integration
-- **Target 100% test coverage** - aim for complete coverage, accept slightly less only if truly not feasible
+- **Target 100% code coverage** for unit tests
+- Integration tests should cover all major workflows
+- Fast unit tests (use mocks), slower integration tests (use real resources)
 
 ### Progress Tracking
 - **roadmap.md is automatically updated by the roadmap-update sub-agent**
