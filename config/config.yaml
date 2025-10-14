@@ -1,0 +1,40 @@
+# motoPrice Configuration File
+# Default configuration values - override with environment variables
+
+database:
+  pool_size: 5
+  max_overflow: 10
+  echo: false
+
+scraping:
+  sources:
+    - cycletrader
+    - facebook
+  delay_between_requests: 1.0  # seconds
+  timeout: 30  # seconds
+  max_retries: 3
+  user_agent_rotation: true
+
+scoring:
+  weights:
+    price: 0.40
+    mileage: 0.20
+    quality: 0.15
+    condition: 0.10
+    red_flags: 0.10
+    location: 0.05
+
+ai:
+  provider: openai  # openai or local
+  model: gpt-4-vision-preview
+  cache_results: true
+  max_tokens: 1000
+  temperature: 0.1
+
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
+  file: logs/motoprice.log
+  rotation: "10 MB"
+  retention: "1 month"
+  console: true
