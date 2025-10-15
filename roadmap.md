@@ -123,6 +123,45 @@
 
 ---
 
+### Task 1.4: Error Handling Framework ⏳
+**Status:** Pending
+**Estimated Time:** 1.5 hours
+**Dependencies:** Task 1.3
+
+**Objectives:**
+- Create custom exception hierarchy for the application
+- Implement error handling utilities
+- Add error categorization (retryable vs fatal)
+- Set up error logging and reporting
+
+**Deliverables:**
+- [ ] `src/utils/exceptions.py` - Custom exception classes
+- [ ] Base exception class `MotoPriceError`
+- [ ] Specific exceptions for different error types:
+  - [ ] `ConfigurationError` - Config/setup issues
+  - [ ] `DatabaseError` - Database operation failures
+  - [ ] `ScraperError` - Web scraping issues
+  - [ ] `ValidationError` - Data validation failures
+  - [ ] `APIError` - External API failures
+- [ ] Error categorization (retryable/fatal)
+- [ ] Error logging integration
+
+**Testing:**
+- [ ] Test exception hierarchy
+- [ ] Test error messages and attributes
+- [ ] Test error categorization
+- [ ] Test logging integration
+- [ ] Test error context preservation
+
+**Acceptance Criteria:**
+- [ ] All custom exceptions inherit from base class
+- [ ] Errors include helpful context and messages
+- [ ] Retryable vs fatal errors clearly distinguished
+- [ ] Errors integrate with logging system
+- [ ] Tests pass with 95%+ coverage
+
+---
+
 ## Phase 2: Web Scraping Infrastructure
 
 ### Task 2.1: Base Scraper Framework ⏳
