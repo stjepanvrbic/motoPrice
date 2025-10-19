@@ -252,6 +252,20 @@ The project requires both **unit tests** and **integration tests** to ensure ful
   - Config → Database → Operations flow
   - Full listing evaluation workflow (scrape → normalize → score)
 
+**Real-World Integration Tests (CRITICAL):**
+- **REQUIRED for all web scrapers** - verify scrapers work against real websites
+- Detect when website structure changes and scraper needs updates
+- Validate data extraction accuracy with actual data
+- Mark with `@pytest.mark.integration` decorator
+- Can be run separately from unit tests: `pytest -m integration`
+- Should include data quality assertions (e.g., "90% of listings must have titles")
+- Should verify critical fields are present (URL, title, price, etc.)
+- Can be run manually for quick verification: `python tests/integration/testXIntegration.py`
+- Examples:
+  - CycleTrader scraper → Real CycleTrader website
+  - Facebook scraper → Real Facebook Marketplace
+  - eBay scraper → Real eBay Motors
+
 **Test Organization:**
 ```
 tests/

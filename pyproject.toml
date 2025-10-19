@@ -86,6 +86,9 @@ testpaths = ["tests"]
 python_files = ["test*.py"]
 python_classes = ["Test*"]
 python_functions = ["test*"]
+markers = [
+    "integration: Integration tests that require real web scraping (deselect with '-m \"not integration\"')",
+]
 addopts = [
     "--verbose",
     "--cov=src",
