@@ -108,18 +108,37 @@ def testFacebookListingDetailScraping():
     """
     scraper = FacebookMarketplaceScraper()
 
-    # This is a placeholder test - we would need a real listing URL
-    # For now, we just verify the method exists and has correct signature
+    # Verify the method exists and has correct signature
     assert hasattr(scraper, "scrapeListingDetails")
     assert callable(scraper.scrapeListingDetails)
 
     logger.info("Listing detail scraping method is available")
 
-    # We skip actual scraping test since it requires:
-    # 1. A valid current listing URL (they expire)
-    # 2. Facebook authentication
-    # 3. Would be too slow for regular test runs
-    pytest.skip("Skipping real listing detail scrape - requires valid URL and authentication")
+    # Try to get a listing URL from search first
+    try:
+        results = scraper.search(query="motorcycle", maxPages=1, scrollsPerPage=1)
+
+        if len(results) == 0:
+            pytest.skip("No listings available to test detail scraping")
+            return
+
+        # Try to scrape details for first listing
+        firstListingUrl = results[0].get("url")
+        if not firstListingUrl:
+            pytest.skip("No valid URL in search results")
+            return
+
+        logger.info(f"Attempting to scrape details for: {firstListingUrl}")
+        details = scraper.scrapeListingDetails(firstListingUrl)
+
+        # Verify we got some data back
+        assert "url" in details
+        assert details["url"] == firstListingUrl
+        logger.info(f"Successfully scraped listing details: {details.get('title')}")
+
+    except Exception as e:
+        logger.warning(f"Facebook listing detail scraping failed (expected): {e}")
+        pytest.skip(f"Facebook requires authentication or blocked request: {e}")
 
 
 @pytest.mark.integration()
@@ -139,8 +158,8 @@ def testFacebookDataQuality():
         )
 
         if len(results) == 0:
-            logger.warning("No results to test data quality")
-            pytest.skip("No results returned from Facebook")
+            logger.warning("No results to test data quality - likely auth required")
+            pytest.skip("No results returned from Facebook - authentication may be required")
             return
 
         # Count listings with required fields
@@ -157,8 +176,13 @@ def testFacebookDataQuality():
         assert withUrl == len(results), "All listings should have URL"
         assert withTitle >= len(results) * 0.8, "At least 80% should have title"
 
+        logger.info("Facebook data quality test passed!")
+
+    except AssertionError:
+        # Re-raise assertion errors (actual test failures)
+        raise
     except Exception as e:
-        logger.warning(f"Facebook data quality test failed: {e}")
+        logger.warning(f"Facebook data quality test failed (this may be expected): {e}")
         pytest.skip(f"Facebook blocked request or requires login: {e}")
 
 

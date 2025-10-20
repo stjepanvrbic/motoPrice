@@ -8,7 +8,7 @@ motorcycle listing data from various sources.
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.utils.logger import getLogger
 
@@ -174,11 +174,10 @@ class NormalizedListing(BaseModel):
             raise ValueError("Listing must have either title or (make and model)")
         return self
 
-    class Config:
-        """Pydantic config."""
-
-        str_strip_whitespace = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+    )
 
 
 class ParsedTitle(BaseModel):
