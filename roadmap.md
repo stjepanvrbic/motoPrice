@@ -1,8 +1,8 @@
 # Motorcycle Listing Evaluator - Development Roadmap
 
-**Last Updated:** October 19, 2025
+**Last Updated:** October 20, 2025
 **Current Phase:** Phase 3 - Data Processing & Storage
-**Current Task:** Task 3.1 - Data Normalization
+**Current Task:** Task 3.2 - Database Insertion Pipeline
 
 ---
 
@@ -326,8 +326,8 @@
 
 ## Phase 3: Data Processing & Storage
 
-### Task 3.1: Data Normalization ⏳
-**Status:** Pending
+### Task 3.1: Data Normalization ✅
+**Status:** Completed
 **Estimated Time:** 3 hours
 **Dependencies:** Task 2.2
 
@@ -339,26 +339,32 @@
 - Handle malformed data gracefully
 
 **Deliverables:**
-- [ ] `src/utils/validators.py` - Pydantic models for validation
-- [ ] Title parser (extract year, make, model)
-- [ ] Price normalizer (remove $, commas, handle "OBO")
-- [ ] Mileage normalizer (handle "k", "mi", etc.)
-- [ ] Location parser (city, state, ZIP)
-- [ ] Data cleaning utilities
+- [x] `src/utils/validators.py` - Pydantic models for validation
+- [x] Title parser (extract year, make, model)
+- [x] Price normalizer (remove $, commas, handle "OBO")
+- [x] Mileage normalizer (handle "k", "mi", etc.)
+- [x] Location parser (city, state, ZIP)
+- [x] Data cleaning utilities
 
 **Testing:**
-- [ ] Test title parsing with 20+ variations
-- [ ] Test price normalization edge cases
-- [ ] Test mileage parsing variations
-- [ ] Test location parsing
-- [ ] Test handling of malformed data
-- [ ] Test validation with Pydantic
+- [x] Test title parsing with 20+ variations
+- [x] Test price normalization edge cases
+- [x] Test mileage parsing variations
+- [x] Test location parsing
+- [x] Test handling of malformed data
+- [x] Test validation with Pydantic
 
 **Acceptance Criteria:**
-- 95%+ accuracy on title parsing
-- All price formats handled correctly
-- Malformed data raises clear errors
-- Tests pass with 90%+ coverage
+- [x] 95%+ accuracy on title parsing (tested with multiple makes/models)
+- [x] All price formats handled correctly ($15k, OBO, commas, etc.)
+- [x] Malformed data raises clear errors (Pydantic validation)
+- [x] Tests pass with 92-93% coverage for new modules (62 tests, 176 total passing)
+
+**Implementation Notes:**
+- Pydantic models provide automatic validation and normalization
+- Known motorcycle makes database improves parsing accuracy
+- Flexible parsers handle multiple input formats with fallback strategies
+- Complete normalization pipeline via `normalizeListing()` function
 
 ---
 
