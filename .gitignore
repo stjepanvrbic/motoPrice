@@ -65,6 +65,9 @@ data/*.json
 .env*
 !.env.example
 
+# Facebook session
+.facebook_session.json
+
 # Project Specific
 config/config.local.yaml
 config/*.local.yaml

@@ -5,9 +5,12 @@ Facebook Marketplace has less structured data than CycleTrader, so this scraper
 uses more flexible parsing with fuzzy matching and fallback strategies.
 """
 
+import json
+import os
 import random
 import re
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -34,6 +37,8 @@ class FacebookMarketplaceScraper(BaseScraper):
         self.browser = None
         self.context = None
         self.source = self.source_name  # Alias for consistency with tests
+        self.isAuthenticated = False
+        self.sessionFile = Path(".facebook_session.json")
 
     def _launchBrowser(self):
         """Launch Playwright browser with anti-detection measures."""
@@ -71,6 +76,10 @@ class FacebookMarketplaceScraper(BaseScraper):
     def _closeBrowser(self):
         """Close browser and cleanup resources."""
         if self.context:
+            # Save session if authenticated
+            if self.isAuthenticated:
+                self._saveSession()
+
             self.context.close()
             self.context = None
         if self.browser:
@@ -79,6 +88,173 @@ class FacebookMarketplaceScraper(BaseScraper):
         if self.playwright:
             self.playwright.stop()
             self.playwright = None
+
+    def _saveSession(self):
+        """Save authenticated session cookies to file."""
+        if not self.context:
+            return
+
+        try:
+            cookies = self.context.cookies()
+            self.sessionFile.write_text(json.dumps(cookies, indent=2))
+            logger.info(f"Saved Facebook session to {self.sessionFile}")
+        except Exception as e:
+            logger.warning(f"Failed to save Facebook session: {e}")
+
+    def _loadSession(self):
+        """Load authenticated session cookies from file."""
+        if not self.sessionFile.exists():
+            logger.info("No saved Facebook session found")
+            return False
+
+        try:
+            cookies = json.loads(self.sessionFile.read_text())
+            if self.context:
+                self.context.add_cookies(cookies)
+                self.isAuthenticated = True
+                logger.info("Loaded Facebook session from file")
+                return True
+        except Exception as e:
+            logger.warning(f"Failed to load Facebook session: {e}")
+            return False
+
+    def _login(self):
+        """
+        Authenticate with Facebook.
+
+        Tries in order:
+        1. Load saved session from file
+        2. Use environment variable cookies
+        3. Use email/password login
+
+        Raises:
+            ScraperError: If authentication fails
+        """
+        if self.isAuthenticated:
+            logger.info("Already authenticated with Facebook")
+            return
+
+        if not self.context:
+            raise ScraperError("Browser context not initialized", retryable=False)
+
+        page = self.context.new_page()
+
+        try:
+            # Try 1: Load saved session
+            if self._loadSession():
+                # Verify session still valid by visiting marketplace
+                page.goto(self.BASE_URL, wait_until="networkidle", timeout=15000)
+                time.sleep(2)
+
+                # Check if we're logged in (no login button visible)
+                if "login" not in page.url.lower():
+                    logger.info("Facebook session is still valid")
+                    page.close()
+                    return
+                else:
+                    logger.info("Saved session expired, need to re-authenticate")
+                    self.isAuthenticated = False
+
+            # Try 2: Use cookies from environment
+            cookiesJson = os.getenv("FACEBOOK_COOKIES_JSON")
+            if cookiesJson:
+                try:
+                    cookies = json.loads(cookiesJson)
+                    # Convert dict to Playwright cookie format
+                    playwrightCookies = [
+                        {
+                            "name": name,
+                            "value": value,
+                            "domain": ".facebook.com",
+                            "path": "/",
+                        }
+                        for name, value in cookies.items()
+                    ]
+                    self.context.add_cookies(playwrightCookies)
+                    self.isAuthenticated = True
+                    logger.info("Loaded Facebook cookies from environment")
+                    page.close()
+                    return
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid FACEBOOK_COOKIES_JSON format: {e}")
+
+            # Try 3: Email/password login
+            email = os.getenv("FACEBOOK_EMAIL")
+            password = os.getenv("FACEBOOK_PASSWORD")
+
+            if not email or not password:
+                raise ScraperError(
+                    "Facebook authentication required. Set FACEBOOK_EMAIL and FACEBOOK_PASSWORD "
+                    "in .env file, or provide FACEBOOK_COOKIES_JSON",
+                    retryable=False,
+                )
+
+            logger.info(f"Logging into Facebook as {email}")
+
+            # Navigate to Facebook login
+            page.goto("https://www.facebook.com/login", wait_until="networkidle", timeout=30000)
+            time.sleep(random.uniform(1, 2))
+
+            # Fill in login form
+            page.fill('input[name="email"]', email)
+            time.sleep(random.uniform(0.5, 1))
+
+            page.fill('input[name="pass"]', password)
+            time.sleep(random.uniform(0.5, 1))
+
+            # Click login button
+            page.click('button[name="login"]')
+
+            # Wait for navigation (either to home or 2FA)
+            try:
+                page.wait_for_load_state("networkidle", timeout=30000)
+                time.sleep(3)
+            except PlaywrightTimeout:
+                logger.warning("Login timeout - may need 2FA verification")
+
+            # Check if login was successful
+            currentUrl = page.url
+            if "checkpoint" in currentUrl or "two_factor" in currentUrl:
+                logger.warning(
+                    "Facebook requires 2FA verification. Please complete 2FA in the browser window."
+                )
+                # Wait up to 2 minutes for user to complete 2FA
+                for _ in range(24):  # 24 * 5 = 120 seconds
+                    time.sleep(5)
+                    currentUrl = page.url
+                    if "checkpoint" not in currentUrl and "two_factor" not in currentUrl:
+                        logger.info("2FA verification completed")
+                        break
+                else:
+                    raise ScraperError(
+                        "2FA verification timeout. Please try again.", retryable=True
+                    )
+
+            if "login" in page.url:
+                raise ScraperError(
+                    "Facebook login failed. Check your credentials.", retryable=False
+                )
+
+            self.isAuthenticated = True
+            logger.info("Successfully logged into Facebook")
+
+            # Save session for future use
+            self._saveSession()
+
+            page.close()
+
+        except PlaywrightTimeout as e:
+            page.close()
+            raise ScraperError(
+                "Timeout during Facebook login", retryable=True, context={"error": str(e)}
+            ) from e
+        except Exception as e:
+            page.close()
+            raise ScraperError(
+                f"Failed to authenticate with Facebook: {e}",
+                retryable=False,
+                context={"error": str(e)},
+            ) from e
 
     def __enter__(self):
         """Context manager entry."""
@@ -448,6 +624,9 @@ class FacebookMarketplaceScraper(BaseScraper):
 
         self._launchBrowser()
 
+        # Authenticate with Facebook
+        self._login()
+
         try:
             if not self.context:
                 raise ScraperError("Browser context not initialized", retryable=False)
@@ -521,6 +700,9 @@ class FacebookMarketplaceScraper(BaseScraper):
         logger.info(f"Scraping listing details: {url}")
 
         self._launchBrowser()
+
+        # Authenticate with Facebook
+        self._login()
 
         try:
             if not self.context:

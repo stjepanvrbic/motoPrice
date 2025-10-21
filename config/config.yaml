@@ -15,6 +15,12 @@ scraping:
   max_retries: 3
   user_agent_rotation: true
 
+  # Facebook-specific settings
+  facebook:
+    headless: false  # Set to true once auth is working
+    save_session: true  # Save logged-in session to avoid re-login
+    session_file: .facebook_session.json
+
 scoring:
   weights:
     price: 0.40
