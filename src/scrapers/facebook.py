@@ -143,8 +143,8 @@ class FacebookMarketplaceScraper(BaseScraper):
             # Try 1: Load saved session
             if self._loadSession():
                 # Verify session still valid by visiting marketplace
-                page.goto(self.BASE_URL, wait_until="networkidle", timeout=15000)
-                time.sleep(2)
+                page.goto(self.BASE_URL, wait_until="load", timeout=30000)
+                time.sleep(3)
 
                 # Check if we're logged in (no login button visible)
                 if "login" not in page.url.lower():
@@ -205,18 +205,52 @@ class FacebookMarketplaceScraper(BaseScraper):
             # Click login button
             page.click('button[name="login"]')
 
-            # Wait for navigation (either to home or 2FA)
+            # Wait for navigation (either to home, CAPTCHA, or 2FA)
             try:
                 page.wait_for_load_state("networkidle", timeout=30000)
                 time.sleep(3)
             except PlaywrightTimeout:
-                logger.warning("Login timeout - may need 2FA verification")
+                logger.warning("Login timeout - may need verification")
 
-            # Check if login was successful
+            # Check current page state
             currentUrl = page.url
+            pageContent = page.content().lower()
+
+            # Check for CAPTCHA
+            if (
+                "captcha" in pageContent
+                or "security check" in pageContent
+                or "verify" in currentUrl.lower()
+            ):
+                logger.warning(
+                    "Facebook CAPTCHA detected. Please solve the CAPTCHA in the browser window. "
+                    "Waiting up to 3 minutes..."
+                )
+                # Wait up to 3 minutes for CAPTCHA completion
+                for _ in range(36):  # 36 * 5 = 180 seconds
+                    time.sleep(5)
+                    currentUrl = page.url
+                    pageContent = page.content().lower()
+                    if (
+                        "captcha" not in pageContent
+                        and "security check" not in pageContent
+                        and "verify" not in currentUrl.lower()
+                        and "login" not in currentUrl.lower()
+                    ):
+                        logger.info("CAPTCHA completed")
+                        break
+                else:
+                    raise ScraperError(
+                        "CAPTCHA verification timeout. Please try again.", retryable=True
+                    )
+                time.sleep(2)
+                currentUrl = page.url
+
+            # Check for 2FA
             if "checkpoint" in currentUrl or "two_factor" in currentUrl:
                 logger.warning(
-                    "Facebook requires 2FA verification. Please complete 2FA in the browser window."
+                    "Facebook requires 2FA verification. Please complete 2FA in the browser window. "
+                    "Waiting up to 2 minutes..."
                 )
                 # Wait up to 2 minutes for user to complete 2FA
                 for _ in range(24):  # 24 * 5 = 120 seconds
@@ -230,7 +264,8 @@ class FacebookMarketplaceScraper(BaseScraper):
                         "2FA verification timeout. Please try again.", retryable=True
                     )
 
-            if "login" in page.url:
+            # Final check - if still on login page, authentication failed
+            if "login" in page.url.lower():
                 raise ScraperError(
                     "Facebook login failed. Check your credentials.", retryable=False
                 )
@@ -634,10 +669,11 @@ class FacebookMarketplaceScraper(BaseScraper):
             page = self.context.new_page()
 
             # Navigate to search results
-            page.goto(searchUrl, wait_until="networkidle", timeout=30000)
+            # Use "load" instead of "networkidle" - Facebook Marketplace has too much dynamic content
+            page.goto(searchUrl, wait_until="load", timeout=60000)
 
-            # Wait for initial load
-            time.sleep(random.uniform(2, 4))
+            # Wait for content to render
+            time.sleep(random.uniform(5, 7))
 
             # Simulate human behavior
             self._simulateHumanBehavior(page)

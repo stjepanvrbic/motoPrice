@@ -119,6 +119,17 @@ If your Facebook account has 2FA enabled:
 - Try logging in manually at facebook.com to verify they work
 - Check for typos
 
+### "CAPTCHA verification timeout"
+
+**Problem:** Didn't solve CAPTCHA in time
+
+**Solution:**
+- Facebook may show CAPTCHA on first login from new location/device
+- The scraper waits up to 3 minutes for you to solve it
+- Solve the CAPTCHA in the browser window that opens
+- Once completed, login will continue automatically
+- After successful login, session is saved and CAPTCHA won't be needed again
+
 ### "2FA verification timeout"
 
 **Problem:** Didn't complete 2FA in time
