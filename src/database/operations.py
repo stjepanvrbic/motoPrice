@@ -2,7 +2,7 @@
 Database CRUD operations for all models.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import and_, desc, select
 from sqlalchemy.orm import Session
@@ -88,10 +88,12 @@ def getListingByUrl(session: Session, url: str) -> Listing | None:
 
 def updateListing(session: Session, listing: Listing, **kwargs) -> Listing:
     """Update listing fields."""
+    from datetime import datetime
+
     for key, value in kwargs.items():
         if hasattr(listing, key):
             setattr(listing, key, value)
-    listing.updatedAt = datetime.now()
+    listing.updatedAt = datetime.now(UTC).replace(tzinfo=None)
     session.flush()
     return listing
 
@@ -294,9 +296,69 @@ def getTopListings(session: Session, minScore: float = 80.0, limit: int = 20) ->
 # ============================================================================
 
 
+def upsertListing(session: Session, url: str, **kwargs) -> tuple[Listing, bool]:
+    """
+    Insert or update listing by URL (deduplication).
+
+    Args:
+        session: Database session
+        url: Listing URL (unique identifier)
+        **kwargs: Listing fields to create/update
+
+    Returns:
+        Tuple of (listing, wasCreated)
+    """
+    listing = getListingByUrl(session, url)
+
+    if listing is None:
+        # Create new listing
+        source = kwargs.pop("source", "unknown")
+        listing = createListing(session, source=source, url=url, **kwargs)
+        return (listing, True)
+    else:
+        # Update existing listing
+        listing = updateListing(session, listing, **kwargs)
+        return (listing, False)
+
+
+def bulkUpsertListings(session: Session, listings: list[dict]) -> dict[str, int]:
+    """
+    Bulk insert or update listings by URL (with deduplication).
+
+    More efficient than individual upserts for large batches.
+
+    Args:
+        session: Database session
+        listings: List of listing dictionaries (must include 'url')
+
+    Returns:
+        Dictionary with counts: {'created': int, 'updated': int, 'total': int}
+    """
+    created = 0
+    updated = 0
+
+    for listingData in listings:
+        url = listingData.get("url")
+        if not url:
+            continue
+
+        # Remove 'url' from listingData to avoid duplicate argument
+        listingDataCopy = {k: v for k, v in listingData.items() if k != "url"}
+        _, wasCreated = upsertListing(session, url, **listingDataCopy)
+        if wasCreated:
+            created += 1
+        else:
+            updated += 1
+
+    session.flush()
+    return {"created": created, "updated": updated, "total": created + updated}
+
+
 def bulkCreateListings(session: Session, listings: list[dict]) -> int:
     """
-    Bulk insert listings.
+    Bulk insert listings (no deduplication).
+
+    Use this when you know listings are new. For deduplication, use bulkUpsertListings.
 
     Args:
         session: Database session
