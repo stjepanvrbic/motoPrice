@@ -353,6 +353,191 @@ def testBulkCreateListings(testSession, sampleMotorcycle):
     assert count == 10
 
 
+def testUpsertListingCreate(testSession, sampleMotorcycle):
+    """Upsert creates new listing when URL doesn't exist."""
+    url = "https://cycletrader.com/new-listing"
+    listing, wasCreated = ops.upsertListing(
+        testSession,
+        url=url,
+        motorcycleId=sampleMotorcycle.id,
+        source="CycleTrader",
+        price=25000.00,
+        mileage=1000,
+    )
+    testSession.commit()
+
+    assert wasCreated is True
+    assert listing.url == url
+    assert listing.price == 25000.00
+    assert listing.mileage == 1000
+
+
+def testUpsertListingUpdate(testSession, sampleListing):
+    """Upsert updates existing listing when URL exists."""
+    originalUpdatedAt = sampleListing.updatedAt
+
+    import time
+
+    time.sleep(0.01)  # Ensure timestamp difference
+
+    listing, wasCreated = ops.upsertListing(
+        testSession, url=sampleListing.url, price=30000.00, mileage=2000
+    )
+    testSession.commit()
+
+    assert wasCreated is False
+    assert listing.id == sampleListing.id
+    assert listing.price == 30000.00
+    assert listing.mileage == 2000
+    assert listing.updatedAt > originalUpdatedAt
+
+
+def testBulkUpsertListingsWithDeduplication(testSession, sampleMotorcycle):
+    """Bulk upsert handles both new and existing listings."""
+    ops.createListing(
+        testSession,
+        motorcycleId=sampleMotorcycle.id,
+        source="CycleTrader",
+        url="https://cycletrader.com/existing",
+        price=20000.00,
+    )
+    testSession.commit()
+
+    listingsData = [
+        {
+            "motorcycleId": sampleMotorcycle.id,
+            "source": "CycleTrader",
+            "url": "https://cycletrader.com/existing",
+            "price": 22000.00,
+        },
+        {
+            "motorcycleId": sampleMotorcycle.id,
+            "source": "CycleTrader",
+            "url": "https://cycletrader.com/new1",
+            "price": 25000.00,
+        },
+        {
+            "motorcycleId": sampleMotorcycle.id,
+            "source": "CycleTrader",
+            "url": "https://cycletrader.com/new2",
+            "price": 26000.00,
+        },
+    ]
+
+    result = ops.bulkUpsertListings(testSession, listingsData)
+    testSession.commit()
+
+    assert result["created"] == 2
+    assert result["updated"] == 1
+    assert result["total"] == 3
+
+    updatedListing = ops.getListingByUrl(testSession, "https://cycletrader.com/existing")
+    assert updatedListing.price == 22000.00
+
+
+def testBulkInsertPerformance(testSession, sampleMotorcycle):
+    """Bulk insert 1000 records in under 10 seconds."""
+    import time
+
+    listingsData = [
+        {
+            "motorcycleId": sampleMotorcycle.id,
+            "source": "CycleTrader",
+            "url": f"https://cycletrader.com/perf-{i}",
+            "price": 25000.00,
+        }
+        for i in range(1000)
+    ]
+
+    startTime = time.time()
+    count = ops.bulkCreateListings(testSession, listingsData)
+    testSession.commit()
+    endTime = time.time()
+
+    elapsed = endTime - startTime
+
+    assert count == 1000
+    assert elapsed < 10.0, f"Bulk insert took {elapsed:.2f}s, should be < 10s"
+
+
+def testDeduplicationSameUrlTwice(testSession, sampleMotorcycle):
+    """Inserting same URL twice via upsert doesn't create duplicates."""
+    url = "https://cycletrader.com/duplicate-test"
+
+    listing1, created1 = ops.upsertListing(
+        testSession,
+        url=url,
+        motorcycleId=sampleMotorcycle.id,
+        source="CycleTrader",
+        price=20000.00,
+    )
+    testSession.commit()
+
+    listing2, created2 = ops.upsertListing(testSession, url=url, price=22000.00, mileage=1500)
+    testSession.commit()
+
+    assert created1 is True
+    assert created2 is False
+    assert listing1.id == listing2.id
+    assert listing2.price == 22000.00
+    assert listing2.mileage == 1500
+
+    allWithUrl = testSession.query(ops.Listing).filter_by(url=url).all()
+    assert len(allWithUrl) == 1
+
+
+def testTransactionRollbackOnError(testSession, sampleMotorcycle):
+    """Transaction rolls back on error."""
+    initialCount = testSession.query(ops.Listing).count()
+
+    try:
+        ops.createListing(
+            testSession,
+            motorcycleId=sampleMotorcycle.id,
+            source="CycleTrader",
+            url="https://cycletrader.com/rollback-test-1",
+            price=25000.00,
+        )
+
+        # Create listing with duplicate URL to trigger IntegrityError
+        ops.createListing(
+            testSession,
+            motorcycleId=sampleMotorcycle.id,
+            source="CycleTrader",
+            url="https://cycletrader.com/rollback-test-1",  # Same URL
+            price=30000.00,
+        )
+
+        testSession.commit()
+    except Exception:
+        testSession.rollback()
+
+    # After rollback, count should be same as before
+    finalCount = testSession.query(ops.Listing).count()
+    assert (
+        finalCount == initialCount
+    ), "Rollback should have removed all listings from failed transaction"
+
+
+def testTimestampTracking(testSession, sampleListing):
+    """Timestamps are tracked correctly."""
+    import time
+
+    originalScrapedAt = sampleListing.scrapedAt
+    originalUpdatedAt = sampleListing.updatedAt
+
+    assert originalScrapedAt is not None
+    assert originalUpdatedAt is not None
+
+    time.sleep(0.01)
+
+    ops.updateListing(testSession, sampleListing, price=30000.00)
+    testSession.commit()
+
+    assert sampleListing.scrapedAt == originalScrapedAt
+    assert sampleListing.updatedAt > originalUpdatedAt
+
+
 # ============================================================================
 # Connection Manager Tests
 # ============================================================================
