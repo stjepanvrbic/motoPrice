@@ -250,6 +250,19 @@ def testSaveImageAsString():
         assert result.exists()
 
 
+def testSaveImageOSError():
+    """Handle file system errors during save."""
+    import tempfile
+
+    imageData = b"fake image data"
+
+    with tempfile.TemporaryDirectory() as tmpDir:
+        savePath = Path(tmpDir) / "test.jpg"
+        with patch("builtins.open", side_effect=OSError("Permission denied")):
+            with pytest.raises(OSError, match="Permission denied"):
+                saveImage(imageData, savePath)
+
+
 # ============================================================================
 # Download and Save Combined Tests
 # ============================================================================

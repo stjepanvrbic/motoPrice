@@ -104,8 +104,16 @@ def extractImageMetadata(imageData: bytes | BinaryIO) -> dict:
             - mode: Color mode (RGB, RGBA, etc.)
             - size_bytes: Size in bytes
     """
+    # Calculate size before converting to BytesIO
     if isinstance(imageData, bytes):
+        sizeBytes = len(imageData)
         imageData = BytesIO(imageData)
+    else:
+        # For file-like objects, seek to end to get size
+        currentPos = imageData.tell()
+        imageData.seek(0, 2)  # Seek to end
+        sizeBytes = imageData.tell()
+        imageData.seek(currentPos)  # Restore original position
 
     try:
         with Image.open(imageData) as img:
@@ -114,7 +122,7 @@ def extractImageMetadata(imageData: bytes | BinaryIO) -> dict:
                 "height": img.height,
                 "format": img.format,
                 "mode": img.mode,
-                "size_bytes": imageData.tell() if hasattr(imageData, "tell") else 0,
+                "size_bytes": sizeBytes,
             }
 
             logger.debug(f"Extracted image metadata: {metadata}")
