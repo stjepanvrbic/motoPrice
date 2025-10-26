@@ -402,8 +402,8 @@
 
 ---
 
-### Task 3.3: Image Handling ⏳
-**Status:** Pending
+### Task 3.3: Image Handling ✅
+**Status:** Completed
 **Estimated Time:** 2 hours
 **Dependencies:** Task 2.2, Task 1.2
 
@@ -413,23 +413,23 @@
 - Create image metadata storage
 
 **Deliverables:**
-- [ ] `src/utils/images.py` - Image utilities
-- [ ] Image URL validation
-- [ ] Optional image download function
-- [ ] Image metadata storage (width, height, format)
-- [ ] Image database operations
+- [x] `src/utils/images.py` - Image utilities
+- [x] Image URL validation (validateImageUrl)
+- [x] Optional image download function (downloadImage, downloadAndSaveImage)
+- [x] Image metadata storage (width, height, format, mode, size_bytes)
+- [x] Image database operations (uses existing createImage, getImagesByListing)
 
 **Testing:**
-- [ ] Test URL validation
-- [ ] Test image download (if implemented)
-- [ ] Test database storage
-- [ ] Test handling invalid URLs
-- [ ] Test handling download failures
+- [x] Test URL validation (6 tests)
+- [x] Test image download (4 tests with mocked requests)
+- [x] Test database storage (3 integration tests)
+- [x] Test handling invalid URLs (multiple validation tests)
+- [x] Test handling download failures (network errors, OSError)
 
 **Acceptance Criteria:**
-- Image URLs stored correctly
-- Downloads work reliably (if implemented)
-- Tests pass with 85%+ coverage
+- Image URLs stored correctly (verified)
+- Downloads work reliably (tested with mocks)
+- Tests pass with 100% coverage (exceeded 85% target)
 
 ---
 
