@@ -34,7 +34,8 @@ class FacebookMarketplaceScraper(BaseScraper):
         """Initialize Facebook Marketplace scraper.
 
         Args:
-            headless: Run browser in headless mode (True for tests/CI, False for production)
+            headless: Run browser in headless mode. Default False because Facebook
+                      may block headless browsers. Set to True only for mocked tests.
         """
         super().__init__("facebook")
         self.playwright = None
@@ -52,8 +53,8 @@ class FacebookMarketplaceScraper(BaseScraper):
             assert self.playwright is not None
 
             # Launch browser with anti-detection args
-            # Facebook requires non-headless mode for initial development (production)
-            # Tests can use headless mode for faster execution
+            # Facebook may block headless browsers
+            # For production use, headless=False is recommended
             self.browser = self.playwright.chromium.launch(
                 headless=self.headless,
                 args=[

@@ -21,17 +21,20 @@ class CycleTraderScraper(BaseScraper):
 
     BASE_URL = "https://www.cycletrader.com"
 
-    def __init__(self, headless: bool = False):
+    def __init__(self, headless: bool = False, proxy: str | None = None):
         """Initialize CycleTrader scraper.
 
         Args:
-            headless: Run browser in headless mode (True for tests/CI, False for production)
+            headless: Run browser in headless mode. Default False because CycleTrader
+                      actively blocks headless browsers. Set to True only for mocked tests.
+            proxy: Proxy server URL (e.g., "http://proxy.example.com:8080")
         """
         super().__init__("cycletrader")
         self.playwright = None
         self.browser = None
         self.context = None
         self.headless = headless
+        self.proxy = proxy
 
     def _launchBrowser(self):
         """Launch Playwright browser with anti-detection measures."""
@@ -40,23 +43,31 @@ class CycleTraderScraper(BaseScraper):
             assert self.playwright is not None
 
             # Launch browser with anti-detection args
-            # Note: headless=False is required to bypass CycleTrader's bot detection in production
-            # For tests, headless=True can be used for faster, non-visual testing
+            # IMPORTANT: CycleTrader blocks headless browsers despite anti-detection measures
+            # For production use, headless=False is required (browser window will be visible)
+            # For containerized/CI environments, use mocked data or accept that scraping will fail
             self.browser = self.playwright.chromium.launch(
                 headless=self.headless,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
+                    "--no-sandbox",
                 ],
             )
 
             # Create context with realistic browser fingerprint
-            self.context = self.browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
-                locale="en-US",
-                timezone_id="America/New_York",
-            )
+            context_options = {
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "viewport": {"width": 1920, "height": 1080},
+                "locale": "en-US",
+                "timezone_id": "America/New_York",
+            }
+
+            # Add proxy if provided
+            if self.proxy:
+                context_options["proxy"] = {"server": self.proxy}
+
+            self.context = self.browser.new_context(**context_options)
 
             self.logger.info("Browser launched with anti-detection measures")
 

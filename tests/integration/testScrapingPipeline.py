@@ -50,8 +50,8 @@ class TestScrapingPipeline:
         - Data integrity throughout the pipeline
         """
         # Step 1: Scrape real listings from CycleTrader
-        with CycleTraderScraper(headless=True) as scraper:
-            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
+        with CycleTraderScraper() as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4")
             rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
 
         # Verify scraping worked
@@ -149,8 +149,8 @@ class TestScrapingPipeline:
         - Second scrape updates existing listings
         - No duplicate URLs in database
         """
-        with CycleTraderScraper(headless=True) as scraper:
-            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=3)
+        with CycleTraderScraper() as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4")
 
             # First scrape
             rawListings1 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
@@ -173,7 +173,7 @@ class TestScrapingPipeline:
         initialListingCount = testSession.query(ops.Listing).count()
 
         # Second scrape (same search)
-        with CycleTraderScraper(headless=True) as scraper:
+        with CycleTraderScraper() as scraper:
             rawListings2 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
 
         for rawListing in rawListings2:
@@ -209,8 +209,8 @@ class TestScrapingPipeline:
         - Data types are correct
         - Values are within expected ranges
         """
-        with CycleTraderScraper(headless=True) as scraper:
-            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
+        with CycleTraderScraper() as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4")
             rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
 
         for rawListing in rawListings:
@@ -252,8 +252,8 @@ class TestScrapingPipeline:
         from src.analysis.priceAnalyzer import PriceAnalyzer
 
         # Scrape listings
-        with CycleTraderScraper(headless=True) as scraper:
-            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=10)
+        with CycleTraderScraper() as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4")
             rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:10]
 
         # Insert into database
