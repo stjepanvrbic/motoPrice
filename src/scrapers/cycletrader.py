@@ -155,37 +155,104 @@ class CycleTraderScraper(BaseScraper):
 
         # Automatic solving with 2Captcha
         try:
-            # solver = TwoCaptcha(apiKey)  # TODO: Implement automatic DataDome solving
+            from twocaptcha import TwoCaptcha
+
+            solver = TwoCaptcha(apiKey)
 
             self.logger.info(
                 "DataDome CAPTCHA detected, attempting automatic solve with 2Captcha..."
             )
 
-            # DataDome uses dynamic CAPTCHAs
-            # For now, fall back to manual solving even with API key
-            # (Full 2Captcha integration requires more complex setup for DataDome)
-            self.logger.warning(
-                "Automatic DataDome solving not yet implemented. Please solve manually..."
+            # Get the current page URL and captcha URL
+            currentUrl = page.url
+
+            # Extract DataDome captcha URL from iframe
+            html = page.content()
+            captchaUrlMatch = re.search(r'src="(https://[^"]*captcha-delivery\.com[^"]*)"', html)
+
+            if not captchaUrlMatch:
+                self.logger.warning(
+                    "Could not extract DataDome captcha URL. Falling back to manual solving..."
+                )
+                # Fall back to manual solving
+                for i in range(12):  # 12 * 5 = 60 seconds
+                    time.sleep(5)
+                    if not self._detectDataDomeCaptcha(page):
+                        self.logger.info("CAPTCHA solved manually!")
+                        return True
+                    if (i + 1) % 3 == 0:
+                        remaining = 60 - ((i + 1) * 5)
+                        self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+                return False
+
+            captchaUrl = captchaUrlMatch.group(1)
+            self.logger.info("Sending DataDome CAPTCHA to 2Captcha service...")
+            self.logger.info(f"Captcha URL: {captchaUrl[:100]}...")
+
+            # Use 2Captcha's DataDome task
+            # Note: This may take 30-120 seconds
+            result = solver.datadome(
+                captcha_url=captchaUrl,
+                pageurl=currentUrl,
+                userAgent=page.evaluate("navigator.userAgent"),
             )
 
-            # Wait for manual solve
-            for i in range(12):  # 12 * 5 = 60 seconds
-                time.sleep(5)
-                if not self._detectDataDomeCaptcha(page):
-                    self.logger.info("CAPTCHA solved!")
-                    return True
-                if (i + 1) % 3 == 0:
-                    remaining = 60 - ((i + 1) * 5)
-                    self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+            if result and "code" in result:
+                self.logger.info("CAPTCHA solved by 2Captcha! Injecting solution...")
 
-            self.logger.warning("CAPTCHA not solved within 60 seconds")
-            return False
+                # Inject the solution cookie
+                # DataDome uses a specific cookie format
+                page.evaluate(f"document.cookie = 'datadome={result['code']}; path=/'")
+
+                # Reload the page with the solution
+                page.reload(wait_until="domcontentloaded")
+                page.wait_for_timeout(2000)
+
+                # Verify CAPTCHA is solved
+                if not self._detectDataDomeCaptcha(page):
+                    self.logger.info("✓ CAPTCHA successfully solved automatically!")
+                    return True
+                else:
+                    self.logger.warning(
+                        "CAPTCHA solution didn't work. Falling back to manual solving..."
+                    )
+                    # Fall back to manual
+                    for i in range(12):
+                        time.sleep(5)
+                        if not self._detectDataDomeCaptcha(page):
+                            self.logger.info("CAPTCHA solved manually!")
+                            return True
+                        if (i + 1) % 3 == 0:
+                            remaining = 60 - ((i + 1) * 5)
+                            self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+                    return False
+            else:
+                self.logger.warning("2Captcha failed to solve. Falling back to manual solving...")
+                for i in range(12):
+                    time.sleep(5)
+                    if not self._detectDataDomeCaptcha(page):
+                        self.logger.info("CAPTCHA solved manually!")
+                        return True
+                    if (i + 1) % 3 == 0:
+                        remaining = 60 - ((i + 1) * 5)
+                        self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+                return False
 
         except ImportError:
             self.logger.error("2captcha-python not installed. Run: pip install 2captcha-python")
             return False
         except Exception as e:
-            self.logger.error(f"Error solving CAPTCHA: {e}")
+            self.logger.warning(f"Error with 2Captcha automatic solving: {e}")
+            self.logger.info("Falling back to manual solving...")
+            # Fall back to manual solving
+            for i in range(12):  # 12 * 5 = 60 seconds
+                time.sleep(5)
+                if not self._detectDataDomeCaptcha(page):
+                    self.logger.info("CAPTCHA solved manually!")
+                    return True
+                if (i + 1) % 3 == 0:
+                    remaining = 60 - ((i + 1) * 5)
+                    self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
             return False
 
     def buildSearchUrl(
