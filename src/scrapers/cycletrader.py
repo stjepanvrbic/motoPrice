@@ -168,7 +168,10 @@ class CycleTraderScraper(BaseScraper):
 
             # Extract DataDome captcha URL from iframe
             html = page.content()
-            captchaUrlMatch = re.search(r'src="(https://[^"]*captcha-delivery\.com[^"]*)"', html)
+            # Look for the iframe with captcha-delivery.com/captcha/ URL
+            captchaUrlMatch = re.search(
+                r'<iframe[^>]*src="(https://[^"]*captcha-delivery\.com/captcha/[^"]*)"', html
+            )
 
             if not captchaUrlMatch:
                 self.logger.warning(
@@ -186,15 +189,22 @@ class CycleTraderScraper(BaseScraper):
                 return False
 
             captchaUrl = captchaUrlMatch.group(1)
+            # Unescape HTML entities (&amp; → &)
+            captchaUrl = captchaUrl.replace("&amp;", "&")
             self.logger.info("Sending DataDome CAPTCHA to 2Captcha service...")
             self.logger.info(f"Captcha URL: {captchaUrl[:100]}...")
 
             # Use 2Captcha's DataDome task
             # Note: This may take 30-120 seconds
+            # DataDome solving requires proxy parameter (format: {'type': 'HTTP', 'uri': 'host:port'})
+            # We provide a placeholder since we're not using a proxy
+            proxyConfig = {"type": "HTTP", "uri": "127.0.0.1:8080"}
+
             result = solver.datadome(
                 captcha_url=captchaUrl,
                 pageurl=currentUrl,
                 userAgent=page.evaluate("navigator.userAgent"),
+                proxy=proxyConfig,
             )
 
             if result and "code" in result:
