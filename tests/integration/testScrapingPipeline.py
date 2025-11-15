@@ -12,6 +12,7 @@ from src.database import operations as ops
 from src.database.base import Base
 from src.scrapers.cycletrader import CycleTraderScraper
 from src.utils.normalizers import normalizeListing
+from src.utils.validators import NormalizedListing
 
 
 @pytest.fixture(scope="function")
@@ -49,10 +50,9 @@ class TestScrapingPipeline:
         - Data integrity throughout the pipeline
         """
         # Step 1: Scrape real listings from CycleTrader
-        scraper = CycleTraderScraper()
-        searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
-
-        rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
+        with CycleTraderScraper(headless=True) as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
+            rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
 
         # Verify scraping worked
         assert len(rawListings) > 0, "Should scrape at least one listing"
@@ -61,11 +61,9 @@ class TestScrapingPipeline:
         # Step 2: Normalize and insert each listing
         insertedCount = 0
         for rawListing in rawListings:
-            # Normalize the raw scraped data
-            normalized = normalizeListing(
-                source="CycleTrader",
-                rawData=rawListing,
-            )
+            # Normalize the raw scraped data (source is already in rawData)
+            normalizedData = normalizeListing(rawData=rawListing)
+            normalized = NormalizedListing(**normalizedData)
 
             # Verify normalization worked
             assert normalized.url is not None, "Normalized listing must have URL"
@@ -92,9 +90,9 @@ class TestScrapingPipeline:
                 price=normalized.price,
                 mileage=normalized.mileage,
                 year=normalized.year,
-                locationCity=normalized.locationCity,
-                locationState=normalized.locationState,
-                locationZip=normalized.locationZip,
+                locationCity=normalized.city,
+                locationState=normalized.state,
+                locationZip=normalized.zipCode,
                 description=normalized.description,
                 sellerType=normalized.sellerType,
                 condition=normalized.condition,
@@ -129,7 +127,7 @@ class TestScrapingPipeline:
         # Verify all listings have required fields
         for listing in listings:
             assert listing.url is not None, "Listing must have URL"
-            assert listing.source == "CycleTrader", "Listing must have correct source"
+            assert listing.source == "cycletrader", "Listing must have correct source"
             assert listing.motorcycle is not None, "Listing must have motorcycle relationship"
             assert listing.year is not None, "Listing must have year"
             assert listing.scrapedAt is not None, "Listing must have scrapedAt timestamp"
@@ -151,13 +149,15 @@ class TestScrapingPipeline:
         - Second scrape updates existing listings
         - No duplicate URLs in database
         """
-        scraper = CycleTraderScraper()
-        searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=3)
+        with CycleTraderScraper(headless=True) as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=3)
 
-        # First scrape
-        rawListings1 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
+            # First scrape
+            rawListings1 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
+
         for rawListing in rawListings1:
-            normalized = normalizeListing(source="CycleTrader", rawData=rawListing)
+            normalizedData = normalizeListing(rawData=rawListing)
+            normalized = NormalizedListing(**normalizedData)
             motorcycle = ops.getOrCreateMotorcycle(
                 testSession, make=normalized.make, model=normalized.model, year=normalized.year
             )
@@ -173,9 +173,12 @@ class TestScrapingPipeline:
         initialListingCount = testSession.query(ops.Listing).count()
 
         # Second scrape (same search)
-        rawListings2 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
+        with CycleTraderScraper(headless=True) as scraper:
+            rawListings2 = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:3]
+
         for rawListing in rawListings2:
-            normalized = normalizeListing(source="CycleTrader", rawData=rawListing)
+            normalizedData = normalizeListing(rawData=rawListing)
+            normalized = NormalizedListing(**normalizedData)
             motorcycle = ops.getOrCreateMotorcycle(
                 testSession, make=normalized.make, model=normalized.model, year=normalized.year
             )
@@ -206,17 +209,17 @@ class TestScrapingPipeline:
         - Data types are correct
         - Values are within expected ranges
         """
-        scraper = CycleTraderScraper()
-        searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
-
-        rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
+        with CycleTraderScraper(headless=True) as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=5)
+            rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:5]
 
         for rawListing in rawListings:
-            normalized = normalizeListing(source="CycleTrader", rawData=rawListing)
+            normalizedData = normalizeListing(rawData=rawListing)
+            normalized = NormalizedListing(**normalizedData)
 
             # Required fields
             assert normalized.url, "Must have URL"
-            assert normalized.source == "CycleTrader", "Must have correct source"
+            assert normalized.source == "cycletrader", "Must have correct source"
             assert normalized.year, "Must have year"
             assert normalized.make, "Must have make"
             assert normalized.model, "Must have model"
@@ -249,13 +252,14 @@ class TestScrapingPipeline:
         from src.analysis.priceAnalyzer import PriceAnalyzer
 
         # Scrape listings
-        scraper = CycleTraderScraper()
-        searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=10)
-        rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:10]
+        with CycleTraderScraper(headless=True) as scraper:
+            searchUrl = scraper.buildSearchUrl(make="Ducati", model="Panigale V4", maxResults=10)
+            rawListings = scraper.scrapeSearchResults(searchUrl, max_pages=1)[:10]
 
         # Insert into database
         for rawListing in rawListings:
-            normalized = normalizeListing(source="CycleTrader", rawData=rawListing)
+            normalizedData = normalizeListing(rawData=rawListing)
+            normalized = NormalizedListing(**normalizedData)
             motorcycle = ops.getOrCreateMotorcycle(
                 testSession, make=normalized.make, model=normalized.model, year=normalized.year
             )

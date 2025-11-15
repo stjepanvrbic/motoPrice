@@ -16,7 +16,7 @@ from src.scrapers.cycletrader import CycleTraderScraper
 @pytest.mark.integration()
 def testCycleTraderSearchUrlConstruction():
     """Verify search URL construction."""
-    scraper = CycleTraderScraper()
+    scraper = CycleTraderScraper(headless=True)
 
     url = scraper.buildSearchUrl(make="Ducati", model="Panigale V4")
 
@@ -38,7 +38,7 @@ def testCycleTraderRealScrape():
     - HTML structure matches our selectors
     - Data extraction works correctly
     """
-    scraper = CycleTraderScraper()
+    scraper = CycleTraderScraper(headless=True)
 
     try:
         # Scrape first page only to minimize load
@@ -99,7 +99,7 @@ def testCycleTraderPagination():
 
     Tests that scraper can navigate multiple pages.
     """
-    scraper = CycleTraderScraper()
+    scraper = CycleTraderScraper(headless=True)
 
     try:
         # Scrape 2 pages
@@ -127,7 +127,7 @@ def testCycleTraderDataQuality():
 
     Checks that scraped data meets quality standards.
     """
-    scraper = CycleTraderScraper()
+    scraper = CycleTraderScraper(headless=True)
 
     try:
         listings = scraper.scrape(make="Ducati", model="Panigale V4", max_pages=1)

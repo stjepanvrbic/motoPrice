@@ -19,7 +19,7 @@ logger = getLogger(__name__)
 @pytest.mark.integration()
 def testFacebookSearchUrlConstruction():
     """Test Facebook search URL construction with various parameters."""
-    scraper = FacebookMarketplaceScraper()
+    scraper = FacebookMarketplaceScraper(headless=True)
 
     # Test with query
     url = scraper.buildSearchUrl(query="Ducati Panigale V4")
@@ -58,7 +58,7 @@ def testFacebookRealSearch():
     NOTE: This test verifies authentication works without manual intervention.
     If no listings are found, it may indicate Facebook HTML structure changed.
     """
-    scraper = FacebookMarketplaceScraper()
+    scraper = FacebookMarketplaceScraper(headless=True)
 
     # Search for motorcycles
     # Using a broad search to increase chances of results
@@ -97,7 +97,7 @@ def testFacebookListingDetailScraping():
 
     This test requires Facebook authentication.
     """
-    scraper = FacebookMarketplaceScraper()
+    scraper = FacebookMarketplaceScraper(headless=True)
 
     # Verify the method exists and has correct signature
     assert hasattr(scraper, "scrapeListingDetails")
@@ -137,7 +137,7 @@ def testFacebookDataQuality():
 
     NOTE: Passes if authentication works, even if no listings found.
     """
-    scraper = FacebookMarketplaceScraper()
+    scraper = FacebookMarketplaceScraper(headless=True)
 
     results = scraper.search(
         query="motorcycle",

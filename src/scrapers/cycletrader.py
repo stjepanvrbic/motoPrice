@@ -21,23 +21,29 @@ class CycleTraderScraper(BaseScraper):
 
     BASE_URL = "https://www.cycletrader.com"
 
-    def __init__(self):
-        """Initialize CycleTrader scraper."""
+    def __init__(self, headless: bool = False):
+        """Initialize CycleTrader scraper.
+
+        Args:
+            headless: Run browser in headless mode (True for tests/CI, False for production)
+        """
         super().__init__("cycletrader")
         self.playwright = None
         self.browser = None
         self.context = None
+        self.headless = headless
 
     def _launchBrowser(self):
         """Launch Playwright browser with anti-detection measures."""
         if self.browser is None:
             self.playwright = sync_playwright().start()
+            assert self.playwright is not None
 
             # Launch browser with anti-detection args
-            # Note: headless=False is required to bypass CycleTrader's bot detection
-            # They detect and block standard headless mode
+            # Note: headless=False is required to bypass CycleTrader's bot detection in production
+            # For tests, headless=True can be used for faster, non-visual testing
             self.browser = self.playwright.chromium.launch(
-                headless=False,
+                headless=self.headless,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
@@ -390,7 +396,7 @@ class CycleTraderScraper(BaseScraper):
             ScraperError: On scraping failure
         """
         self._launchBrowser()
-        all_listings = []
+        all_listings: list[dict[str, Any]] = []
         page_num = 1
 
         try:
