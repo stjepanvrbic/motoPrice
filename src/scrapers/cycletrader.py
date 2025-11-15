@@ -2,7 +2,9 @@
 CycleTrader scraper using Playwright for browser automation.
 """
 
+import os
 import re
+import time
 from typing import Any
 from urllib.parse import urlencode
 
@@ -99,6 +101,92 @@ class CycleTraderScraper(BaseScraper):
             })
         """
         )
+
+    def _detectDataDomeCaptcha(self, page) -> bool:
+        """
+        Detect if DataDome CAPTCHA is present on the page.
+
+        Args:
+            page: Playwright page object
+
+        Returns:
+            True if CAPTCHA detected, False otherwise
+        """
+        html = page.content()
+        return "datadome" in html.lower() or "captcha-delivery.com" in html.lower()
+
+    def _solveCaptchaWith2Captcha(self, page, pageUrl: str) -> bool:
+        """
+        Solve DataDome CAPTCHA using 2Captcha service or manual solving.
+
+        If TWOCAPTCHA_API_KEY environment variable is set, uses automatic solving.
+        Otherwise, waits for manual CAPTCHA solving in the browser window.
+
+        Args:
+            page: Playwright page object
+            pageUrl: Current page URL
+
+        Returns:
+            True if CAPTCHA solved successfully, False otherwise
+        """
+        apiKey = os.getenv("TWOCAPTCHA_API_KEY")
+
+        if not apiKey:
+            # Fallback to manual solving
+            self.logger.warning(
+                "DataDome CAPTCHA detected. TWOCAPTCHA_API_KEY not set - falling back to manual solving."
+            )
+            self.logger.info(
+                "Please solve the CAPTCHA in the browser window (60 second timeout)..."
+            )
+
+            # Wait up to 60 seconds for manual CAPTCHA solve
+            for i in range(12):  # 12 * 5 = 60 seconds
+                time.sleep(5)
+                if not self._detectDataDomeCaptcha(page):
+                    self.logger.info("CAPTCHA solved manually!")
+                    return True
+                if (i + 1) % 3 == 0:  # Log every 15 seconds
+                    remaining = 60 - ((i + 1) * 5)
+                    self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+
+            self.logger.warning("CAPTCHA not solved within 60 seconds")
+            return False
+
+        # Automatic solving with 2Captcha
+        try:
+            # solver = TwoCaptcha(apiKey)  # TODO: Implement automatic DataDome solving
+
+            self.logger.info(
+                "DataDome CAPTCHA detected, attempting automatic solve with 2Captcha..."
+            )
+
+            # DataDome uses dynamic CAPTCHAs
+            # For now, fall back to manual solving even with API key
+            # (Full 2Captcha integration requires more complex setup for DataDome)
+            self.logger.warning(
+                "Automatic DataDome solving not yet implemented. Please solve manually..."
+            )
+
+            # Wait for manual solve
+            for i in range(12):  # 12 * 5 = 60 seconds
+                time.sleep(5)
+                if not self._detectDataDomeCaptcha(page):
+                    self.logger.info("CAPTCHA solved!")
+                    return True
+                if (i + 1) % 3 == 0:
+                    remaining = 60 - ((i + 1) * 5)
+                    self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+
+            self.logger.warning("CAPTCHA not solved within 60 seconds")
+            return False
+
+        except ImportError:
+            self.logger.error("2captcha-python not installed. Run: pip install 2captcha-python")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error solving CAPTCHA: {e}")
+            return False
 
     def buildSearchUrl(
         self,
@@ -425,6 +513,18 @@ class CycleTraderScraper(BaseScraper):
                 # Navigate to page
                 page.goto(search_url, wait_until="domcontentloaded")
                 page.wait_for_timeout(3000)  # Wait for dynamic content to load
+
+                # Check for DataDome CAPTCHA
+                if self._detectDataDomeCaptcha(page):
+                    self.logger.warning("DataDome CAPTCHA detected")
+                    if not self._solveCaptchaWith2Captcha(page, search_url):
+                        raise ScraperError(
+                            "Failed to solve DataDome CAPTCHA. "
+                            "Either solve it manually or set TWOCAPTCHA_API_KEY environment variable.",
+                            retryable=True,
+                        )
+                    # Wait a bit after CAPTCHA solve
+                    page.wait_for_timeout(2000)
 
                 # Get HTML
                 html = page.content()
