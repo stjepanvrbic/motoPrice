@@ -30,12 +30,18 @@ class FacebookMarketplaceScraper(BaseScraper):
 
     BASE_URL = "https://www.facebook.com/marketplace"
 
-    def __init__(self):
-        """Initialize Facebook Marketplace scraper."""
+    def __init__(self, headless: bool = False):
+        """Initialize Facebook Marketplace scraper.
+
+        Args:
+            headless: Run browser in headless mode. Default False because Facebook
+                      may block headless browsers. Set to True only for mocked tests.
+        """
         super().__init__("facebook")
         self.playwright = None
         self.browser = None
         self.context = None
+        self.headless = headless
         self.source = self.source_name  # Alias for consistency with tests
         self.isAuthenticated = False
         self.sessionFile = Path(".facebook_session.json")
@@ -44,11 +50,13 @@ class FacebookMarketplaceScraper(BaseScraper):
         """Launch Playwright browser with anti-detection measures."""
         if self.browser is None:
             self.playwright = sync_playwright().start()
+            assert self.playwright is not None
 
             # Launch browser with anti-detection args
-            # Facebook requires non-headless mode for initial development
+            # Facebook may block headless browsers
+            # For production use, headless=False is recommended
             self.browser = self.playwright.chromium.launch(
-                headless=False,
+                headless=self.headless,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
