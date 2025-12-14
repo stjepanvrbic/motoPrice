@@ -8,6 +8,7 @@ import time
 from typing import Any
 from urllib.parse import urlencode
 
+import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
@@ -153,22 +154,18 @@ class CycleTraderScraper(BaseScraper):
             self.logger.warning("CAPTCHA not solved within 60 seconds")
             return False
 
-        # Automatic solving with 2Captcha
+        # Automatic solving with 2Captcha using DataDomeSliderTask API
         try:
-            from twocaptcha import TwoCaptcha
-
-            solver = TwoCaptcha(apiKey)
-
             self.logger.info(
                 "DataDome CAPTCHA detected, attempting automatic solve with 2Captcha..."
             )
 
             # Get the current page URL and captcha URL
             currentUrl = page.url
+            userAgent = page.evaluate("navigator.userAgent")
 
             # Extract DataDome captcha URL from iframe
             html = page.content()
-            # Look for the iframe with captcha-delivery.com/captcha/ URL
             captchaUrlMatch = re.search(
                 r'<iframe[^>]*src="(https://[^"]*captcha-delivery\.com/captcha/[^"]*)"', html
             )
@@ -177,93 +174,144 @@ class CycleTraderScraper(BaseScraper):
                 self.logger.warning(
                     "Could not extract DataDome captcha URL. Falling back to manual solving..."
                 )
-                # Fall back to manual solving
-                for i in range(12):  # 12 * 5 = 60 seconds
-                    time.sleep(5)
-                    if not self._detectDataDomeCaptcha(page):
-                        self.logger.info("CAPTCHA solved manually!")
-                        return True
-                    if (i + 1) % 3 == 0:
-                        remaining = 60 - ((i + 1) * 5)
-                        self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
-                return False
+                return self._manualCaptchaSolve(page)
 
-            captchaUrl = captchaUrlMatch.group(1)
-            # Unescape HTML entities (&amp; → &)
-            captchaUrl = captchaUrl.replace("&amp;", "&")
-            self.logger.info("Sending DataDome CAPTCHA to 2Captcha service...")
+            captchaUrl = captchaUrlMatch.group(1).replace("&amp;", "&")
+
+            # Check if IP is banned (t=bv in captchaUrl means banned)
+            if "t=bv" in captchaUrl:
+                self.logger.error(
+                    "Your IP is banned by DataDome (t=bv detected). Change your IP or use a proxy."
+                )
+                return self._manualCaptchaSolve(page)
+
             self.logger.info(f"Captcha URL: {captchaUrl[:100]}...")
 
-            # Use 2Captcha's DataDome task
-            # Note: This may take 30-120 seconds
-            # DataDome solving requires proxy parameter (format: {'type': 'HTTP', 'uri': 'host:port'})
-            # We provide a placeholder since we're not using a proxy
-            proxyConfig = {"type": "HTTP", "uri": "127.0.0.1:8080"}
+            # Get proxy config from environment or use default
+            proxyType = os.getenv("PROXY_TYPE", "http")
+            proxyAddress = os.getenv("PROXY_ADDRESS")
+            proxyPort = os.getenv("PROXY_PORT")
+            proxyLogin = os.getenv("PROXY_LOGIN")
+            proxyPassword = os.getenv("PROXY_PASSWORD")
 
-            result = solver.datadome(
-                captcha_url=captchaUrl,
-                pageurl=currentUrl,
-                userAgent=page.evaluate("navigator.userAgent"),
-                proxy=proxyConfig,
+            if not proxyAddress or not proxyPort:
+                self.logger.warning(
+                    "DataDome solving requires a proxy. Set PROXY_ADDRESS and PROXY_PORT in .env file."
+                )
+                self.logger.warning("Falling back to manual solving...")
+                return self._manualCaptchaSolve(page)
+
+            # Create task using 2Captcha DataDomeSliderTask API
+            createTaskPayload = {
+                "clientKey": apiKey,
+                "task": {
+                    "type": "DataDomeSliderTask",
+                    "websiteURL": currentUrl,
+                    "captchaUrl": captchaUrl,
+                    "userAgent": userAgent,
+                    "proxyType": proxyType,
+                    "proxyAddress": proxyAddress,
+                    "proxyPort": int(proxyPort),
+                },
+            }
+
+            # Add proxy auth if provided
+            task = createTaskPayload["task"]
+            assert isinstance(task, dict)  # Type narrowing for mypy
+            if proxyLogin:
+                task["proxyLogin"] = proxyLogin
+            if proxyPassword:
+                task["proxyPassword"] = proxyPassword
+
+            self.logger.info("Sending DataDome CAPTCHA to 2Captcha service...")
+            createResponse = requests.post(
+                "https://api.2captcha.com/createTask", json=createTaskPayload, timeout=30
             )
+            createResult = createResponse.json()
 
-            if result and "code" in result:
-                self.logger.info("CAPTCHA solved by 2Captcha! Injecting solution...")
+            if createResult.get("errorId") != 0:
+                errorCode = createResult.get("errorCode", "UNKNOWN")
+                errorDesc = createResult.get("errorDescription", "Unknown error")
+                self.logger.error(f"2Captcha error: {errorCode} - {errorDesc}")
+                return self._manualCaptchaSolve(page)
 
-                # Inject the solution cookie
-                # DataDome uses a specific cookie format
-                page.evaluate(f"document.cookie = 'datadome={result['code']}; path=/'")
+            taskId = createResult.get("taskId")
+            self.logger.info(f"Task created: {taskId}. Waiting for solution (may take 30-120s)...")
 
-                # Reload the page with the solution
-                page.reload(wait_until="domcontentloaded")
-                page.wait_for_timeout(2000)
+            # Poll for result
+            maxAttempts = 40  # 40 * 5 = 200 seconds max
+            for attempt in range(maxAttempts):
+                time.sleep(5)
 
-                # Verify CAPTCHA is solved
-                if not self._detectDataDomeCaptcha(page):
-                    self.logger.info("✓ CAPTCHA successfully solved automatically!")
-                    return True
+                getResultPayload = {"clientKey": apiKey, "taskId": taskId}
+                resultResponse = requests.post(
+                    "https://api.2captcha.com/getTaskResult", json=getResultPayload, timeout=30
+                )
+                result = resultResponse.json()
+
+                if result.get("status") == "ready":
+                    cookie = result.get("solution", {}).get("cookie")
+                    if cookie:
+                        self.logger.info("✓ CAPTCHA solved by 2Captcha!")
+
+                        # Extract datadome value from cookie string
+                        datadomeMatch = re.search(r"datadome=([^;]+)", cookie)
+                        if datadomeMatch:
+                            datadomeValue = datadomeMatch.group(1)
+
+                            # Inject the cookie
+                            page.context.add_cookies(
+                                [
+                                    {
+                                        "name": "datadome",
+                                        "value": datadomeValue,
+                                        "domain": ".cycletrader.com",
+                                        "path": "/",
+                                    }
+                                ]
+                            )
+
+                            # Reload page
+                            page.reload(wait_until="domcontentloaded")
+                            page.wait_for_timeout(2000)
+
+                            # Verify solved
+                            if not self._detectDataDomeCaptcha(page):
+                                self.logger.info("✓ CAPTCHA successfully bypassed!")
+                                return True
+
+                    self.logger.warning("Got solution but it didn't work. Falling back...")
+                    return self._manualCaptchaSolve(page)
+
+                elif result.get("status") == "processing":
+                    if attempt % 3 == 0:
+                        self.logger.info(f"Still solving... ({attempt * 5}s elapsed)")
+                    continue
                 else:
-                    self.logger.warning(
-                        "CAPTCHA solution didn't work. Falling back to manual solving..."
-                    )
-                    # Fall back to manual
-                    for i in range(12):
-                        time.sleep(5)
-                        if not self._detectDataDomeCaptcha(page):
-                            self.logger.info("CAPTCHA solved manually!")
-                            return True
-                        if (i + 1) % 3 == 0:
-                            remaining = 60 - ((i + 1) * 5)
-                            self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
-                    return False
-            else:
-                self.logger.warning("2Captcha failed to solve. Falling back to manual solving...")
-                for i in range(12):
-                    time.sleep(5)
-                    if not self._detectDataDomeCaptcha(page):
-                        self.logger.info("CAPTCHA solved manually!")
-                        return True
-                    if (i + 1) % 3 == 0:
-                        remaining = 60 - ((i + 1) * 5)
-                        self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
-                return False
+                    errorCode = result.get("errorCode", "UNKNOWN")
+                    self.logger.error(f"2Captcha error: {errorCode}")
+                    return self._manualCaptchaSolve(page)
 
-        except ImportError:
-            self.logger.error("2captcha-python not installed. Run: pip install 2captcha-python")
-            return False
+            self.logger.warning("2Captcha timeout. Falling back to manual solving...")
+            return self._manualCaptchaSolve(page)
+
         except Exception as e:
             self.logger.warning(f"Error with 2Captcha automatic solving: {e}")
-            self.logger.info("Falling back to manual solving...")
-            # Fall back to manual solving
-            for i in range(12):  # 12 * 5 = 60 seconds
-                time.sleep(5)
-                if not self._detectDataDomeCaptcha(page):
-                    self.logger.info("CAPTCHA solved manually!")
-                    return True
-                if (i + 1) % 3 == 0:
-                    remaining = 60 - ((i + 1) * 5)
-                    self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
-            return False
+            return self._manualCaptchaSolve(page)
+
+    def _manualCaptchaSolve(self, page) -> bool:
+        """Wait for manual CAPTCHA solve."""
+        self.logger.info("Waiting for manual CAPTCHA solve (60 seconds)...")
+        for i in range(12):
+            time.sleep(5)
+            if not self._detectDataDomeCaptcha(page):
+                self.logger.info("✓ CAPTCHA solved manually!")
+                return True
+            if (i + 1) % 3 == 0:
+                remaining = 60 - ((i + 1) * 5)
+                self.logger.info(f"Still waiting... ({remaining} seconds remaining)")
+        self.logger.warning("Manual CAPTCHA solve timeout")
+        return False
 
     def buildSearchUrl(
         self,
